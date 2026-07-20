@@ -1,0 +1,100 @@
+name: Build Release Binaries
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -euxo pipefail {0}
+
+jobs:
+  # NativeAOT cannot cross-compile between operating systems, so each target
+  # is built on a matching runner. Artifact names keep the Zig target-triple
+  # convention so existing download links and README instructions still work.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            rid: linux-x64
+            artifact: github-stats_x86_64-linux
+          - runner: ubuntu-24.04-arm
+            rid: linux-arm64
+            artifact: github-stats_aarch64-linux
+          - runner: windows-latest
+            rid: win-x64
+            artifact: github-stats_x86_64-windows.exe
+          - runner: macos-13
+            rid: osx-x64
+            artifact: github-stats_x86_64-macos
+          - runner: macos-latest
+            rid: osx-arm64
+            artifact: github-stats_aarch64-macos
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Install native toolchain
+      if: startsWith(matrix.runner, 'ubuntu')
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang zlib1g-dev
+
+    - name: Publish
+      run: |
+        dotnet publish src/BB84.GitHub.Statistics/BB84.GitHub.Statistics.csproj \
+          --configuration Release \
+          --runtime ${{ matrix.rid }} \
+          --output publish
+
+    - name: Stage artifact
+      run: |
+        mkdir -p staging
+        if [ -f publish/github-stats.exe ]; then
+          cp publish/github-stats.exe "staging/${{ matrix.artifact }}"
+        else
+          cp publish/github-stats "staging/${{ matrix.artifact }}"
+          chmod +x "staging/${{ matrix.artifact }}"
+        fi
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact }}
+        path: staging/${{ matrix.artifact }}
+        if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: true
+
+    - name: Upload release artifacts
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ github.ref_name }}
+      run: |
+        (
+          cd artifacts
+          ls -la
+          gh release create \
+            "${TAG}" \
+            --title "${TAG}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            *
+        )

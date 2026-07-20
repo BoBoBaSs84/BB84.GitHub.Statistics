@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BB84.GitHub.Statistics/BB84.GitHub.Statistics.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BB84.GitHub.Statistics.Tests/BB84.GitHub.Statistics.Tests.csproj" />
+  </Folder>
+</Solution>

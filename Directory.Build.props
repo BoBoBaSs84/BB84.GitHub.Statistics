@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>recommended</AnalysisMode>
+    <AppendPlatformToOutputPath>True</AppendPlatformToOutputPath>
+    <AppendTargetFrameworkToOutputPath>False</AppendTargetFrameworkToOutputPath>
+    <EnableNETAnalyzers>True</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>True</EnforceCodeStyleInBuild>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>True</InvariantGlobalization>
+    <LangVersion>latest</LangVersion>
+    <ManagePackageVersionsCentrally>True</ManagePackageVersionsCentrally>
+    <Nullable>enable</Nullable>
+    <TargetFramework>net10.0</TargetFramework>
+    <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+</Project>

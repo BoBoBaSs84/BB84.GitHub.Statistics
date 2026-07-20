@@ -1,0 +1,136 @@
+using System.Text.Json.Serialization;
+
+namespace BB84.GitHub.Statistics.GitHub.Models;
+
+/// <summary>
+/// GraphQL response shapes. These carry explicit <see cref="JsonPropertyNameAttribute"/>
+/// values because GitHub returns camelCase while the serializer is configured for
+/// the snake_case statistics document.
+/// </summary>
+internal sealed class GraphQlResponse<T>
+{
+	[JsonPropertyName("data")]
+	public T? Data { get; set; }
+}
+
+internal sealed class ViewerWrapper<T>
+{
+	[JsonPropertyName("viewer")]
+	public T? Viewer { get; set; }
+}
+
+internal sealed class BasicInfoViewer
+{
+	[JsonPropertyName("login")]
+	public string Login { get; set; } = string.Empty;
+
+	[JsonPropertyName("name")]
+	public string? Name { get; set; }
+
+	[JsonPropertyName("contributionsCollection")]
+	public ContributionYears? ContributionsCollection { get; set; }
+}
+
+internal sealed class ContributionYears
+{
+	[JsonPropertyName("contributionYears")]
+	public List<int> Years { get; set; } = [];
+}
+
+internal sealed class ContributionsViewer
+{
+	[JsonPropertyName("contributionsCollection")]
+	public ContributionsCollection? ContributionsCollection { get; set; }
+}
+
+internal sealed class ContributionsCollection
+{
+	[JsonPropertyName("totalRepositoryContributions")]
+	public uint TotalRepositoryContributions { get; set; }
+
+	[JsonPropertyName("totalIssueContributions")]
+	public uint TotalIssueContributions { get; set; }
+
+	[JsonPropertyName("totalCommitContributions")]
+	public uint TotalCommitContributions { get; set; }
+
+	[JsonPropertyName("totalPullRequestContributions")]
+	public uint TotalPullRequestContributions { get; set; }
+
+	[JsonPropertyName("totalPullRequestReviewContributions")]
+	public uint TotalPullRequestReviewContributions { get; set; }
+
+	[JsonPropertyName("commitContributionsByRepository")]
+	public List<CommitContributionByRepository> CommitContributionsByRepository { get; set; } = [];
+}
+
+internal sealed class CommitContributionByRepository
+{
+	[JsonPropertyName("repository")]
+	public GraphQlRepository? Repository { get; set; }
+}
+
+internal sealed class GraphQlRepository
+{
+	[JsonPropertyName("nameWithOwner")]
+	public string NameWithOwner { get; set; } = string.Empty;
+
+	[JsonPropertyName("stargazerCount")]
+	public uint StargazerCount { get; set; }
+
+	[JsonPropertyName("forkCount")]
+	public uint ForkCount { get; set; }
+
+	[JsonPropertyName("isPrivate")]
+	public bool IsPrivate { get; set; }
+
+	[JsonPropertyName("languages")]
+	public GraphQlLanguageConnection? Languages { get; set; }
+}
+
+internal sealed class GraphQlLanguageConnection
+{
+	[JsonPropertyName("edges")]
+	public List<GraphQlLanguageEdge>? Edges { get; set; }
+}
+
+internal sealed class GraphQlLanguageEdge
+{
+	[JsonPropertyName("size")]
+	public uint Size { get; set; }
+
+	[JsonPropertyName("node")]
+	public GraphQlLanguageNode? Node { get; set; }
+}
+
+internal sealed class GraphQlLanguageNode
+{
+	[JsonPropertyName("name")]
+	public string Name { get; set; } = string.Empty;
+
+	[JsonPropertyName("color")]
+	public string? Color { get; set; }
+}
+
+/// <summary>Request envelope for a GraphQL call.</summary>
+internal sealed class GraphQlRequest
+{
+	[JsonPropertyName("query")]
+	public string Query { get; set; } = string.Empty;
+
+	[JsonPropertyName("variables")]
+	public DateRangeVariables? Variables { get; set; }
+}
+
+/// <summary>
+/// The only GraphQL variables this application sends. Kept concrete rather than
+/// a dictionary so the source-generated serializer can handle it under AOT.
+/// </summary>
+internal sealed class DateRangeVariables
+{
+	[JsonPropertyName("from")]
+	public string From { get; set; } = string.Empty;
+
+	[JsonPropertyName("to")]
+	public string To { get; set; } = string.Empty;
+}

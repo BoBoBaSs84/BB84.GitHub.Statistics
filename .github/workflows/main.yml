@@ -1,0 +1,66 @@
+name: Generate Stats Images
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash -euxo pipefail {0}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: '10.0.x'
+
+    # Published outside the working tree so the binary survives the branch
+    # switch below and never lands in `git add .`. PublishAot is disabled here:
+    # this job runs the tool once, so a framework-dependent build is several
+    # minutes faster and avoids needing the native toolchain. The release
+    # workflow is what produces AOT binaries.
+    - name: Build
+      run: |
+        dotnet publish src/BB84.GitHub.Statistics/BB84.GitHub.Statistics.csproj \
+          --configuration Release \
+          -p:PublishAot=false \
+          --output "${RUNNER_TEMP}/app"
+
+    - name: Checkout history branch
+      run: |
+        git config --global user.name "BoBoBaSs84"
+        git config --global user.email "73112377+BoBoBaSs84@users.noreply.github.com"
+        # Push generated files to the generated branch
+        git pull
+        git checkout generated || git checkout -b generated
+
+    - name: Generate images
+      run: |
+        "${RUNNER_TEMP}/app/github-stats"
+      env:
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+        EXCLUDE_REPOS: ${{ secrets.EXCLUDE_REPOS }}
+        EXCLUDE_LANGS: ${{ secrets.EXCLUDE_LANGS }}
+        EXCLUDE_PRIVATE: "false"
+        SILENT: "true"
+        # TODO: Remove this when they get their API working again
+        # https://github.com/orgs/community/discussions/192970
+        MAX_RETRIES: 5
+
+    - name: Commit to the repo
+      run: |
+        git add .
+        # Force the build to succeed, even if no files were changed
+        git commit -m 'Update generated files' -m 'Co-Authored-By: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>' || true
+        git push --set-upstream origin generated
