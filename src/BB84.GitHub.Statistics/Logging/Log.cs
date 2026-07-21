@@ -157,4 +157,22 @@ internal static partial class Log
 		Level = LogLevel.Information,
 		Message = "Failed to get views for {Repository} ({Status})")]
 	public static partial void ViewsFailed(ILogger logger, string repository, HttpStatusCode status);
+
+	[LoggerMessage(
+		EventId = 53,
+		Level = LogLevel.Debug,
+		Message = "GitHub exceeded its resource limits over {Months} month(s) from {Month}/{Year}; asking for less at a time.")]
+	public static partial void ResourceLimitSubdividing(ILogger logger, int months, int month, int year);
+
+	[LoggerMessage(
+		EventId = 54,
+		Level = LogLevel.Debug,
+		Message = "Retrying {Month}/{Year} after exceeding resource limits ({Attempt}/{Retries}).")]
+	public static partial void ResourceLimitRetrying(ILogger logger, int attempt, int retries, int month, int year);
+
+	[LoggerMessage(
+		EventId = 55,
+		Level = LogLevel.Warning,
+		Message = "GitHub still exceeded its resource limits for {Month}/{Year}, which cannot be narrowed further. Some data may be omitted.")]
+	public static partial void ResourceLimitReached(ILogger logger, int month, int year);
 }

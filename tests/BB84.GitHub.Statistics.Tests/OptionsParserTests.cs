@@ -154,9 +154,8 @@ public sealed class OptionsParserTests
 		string[] expected = ["a/one", "a/two", "a/three", "a/four"];
 		AppOptions options = new() { ExcludeRepos = "a/one, a/two|a/three\ta/four" };
 
-		CollectionAssert.AreEqual(
-				expected,
-				options.ExcludedRepoPatterns.ToArray());
+		Assert.AreSequenceEqual(
+				expected, options.ExcludedRepoPatterns.ToArray());
 	}
 
 	[TestMethod]
@@ -165,8 +164,7 @@ public sealed class OptionsParserTests
 		string[] expected = ["Jupyter Notebook", "C#"];
 		AppOptions options = new() { ExcludeLangs = "Jupyter Notebook, C#" };
 
-		CollectionAssert.AreEqual(
-				expected,
-				options.ExcludedLangPatterns.ToArray());
+		Assert.AreSequenceEqual(
+				expected, options.ExcludedLangPatterns.ToArray());
 	}
 }

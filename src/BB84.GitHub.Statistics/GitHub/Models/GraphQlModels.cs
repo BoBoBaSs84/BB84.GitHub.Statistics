@@ -11,6 +11,24 @@ internal sealed class GraphQlResponse<T>
 {
 	[JsonPropertyName("data")]
 	public T? Data { get; set; }
+
+	/// <summary>
+	/// GraphQL reports failures in the body with an HTTP 200, so this has to be
+	/// inspected on every response. A <c>RESOURCE_LIMITS_EXCEEDED</c> error in
+	/// particular arrives alongside partial data, where the fields GitHub gave up
+	/// on are simply absent and would otherwise deserialize to zero.
+	/// </summary>
+	[JsonPropertyName("errors")]
+	public List<GraphQlError>? Errors { get; set; }
+}
+
+internal sealed class GraphQlError
+{
+	[JsonPropertyName("type")]
+	public string? Type { get; set; }
+
+	[JsonPropertyName("message")]
+	public string? Message { get; set; }
 }
 
 internal sealed class ViewerWrapper<T>

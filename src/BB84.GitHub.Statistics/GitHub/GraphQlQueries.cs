@@ -1,6 +1,6 @@
 namespace BB84.GitHub.Statistics.GitHub;
 
-/// <summary>The two GraphQL queries this application issues, carried over verbatim.</summary>
+/// <summary>The GraphQL queries this application issues.</summary>
 internal static class GraphQlQueries
 {
 	public const string BasicInfo =
@@ -17,11 +17,16 @@ internal static class GraphQlQueries
         """;
 
 	/// <summary>
-	/// Contribution totals and per-repository commit contributions for a date range.
-	/// <c>maxRepositories</c> is capped at 100 by GitHub, which is why callers
-	/// subdivide the range when the result saturates.
+	/// The five contribution totals for a date range.
 	/// </summary>
-	public const string ContributionsByRange =
+	/// <remarks>
+	/// Deliberately separate from <see cref="CommitContributionsByRange"/>. These
+	/// aggregates are what GitHub's per-query compute budget trips over — a
+	/// <c>RESOURCE_LIMITS_EXCEEDED</c> error names one of them in its path — and
+	/// keeping them apart means they are computed once per year instead of once
+	/// per subdivided range.
+	/// </remarks>
+	public const string ContributionTotals =
 			"""
         query ($from: DateTime, $to: DateTime) {
           viewer {
@@ -31,6 +36,21 @@ internal static class GraphQlQueries
               totalCommitContributions
               totalPullRequestContributions
               totalPullRequestReviewContributions
+            }
+          }
+        }
+        """;
+
+	/// <summary>
+	/// Per-repository commit contributions for a date range.
+	/// <c>maxRepositories</c> is capped at 100 by GitHub, which is why callers
+	/// subdivide the range when the result saturates.
+	/// </summary>
+	public const string CommitContributionsByRange =
+			"""
+        query ($from: DateTime, $to: DateTime) {
+          viewer {
+            contributionsCollection(from: $from, to: $to) {
               commitContributionsByRepository(maxRepositories: 100) {
                 repository {
                   nameWithOwner
