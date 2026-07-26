@@ -5,6 +5,40 @@ using BB84.GitHub.Statistics.Statistics;
 
 namespace BB84.GitHub.Statistics;
 
+/// <summary>
+/// The five contribution totals the collector already gathers, split out so the
+/// overview can show them individually instead of only their sum.
+/// </summary>
+internal sealed record ContributionBreakdown(
+		long Commits,
+		long Prs,
+		long Reviews,
+		long Issues,
+		long ReposCreated);
+
+/// <summary>Profile-level counters, none of which are per-repository.</summary>
+internal sealed record ProfileStats(
+		long Followers,
+		long Following,
+		long StarsGiven,
+		long Gists,
+		long Organizations,
+		long Watching,
+		long Sponsors,
+		long MergedPullRequests,
+		long OwnRepositories,
+		long DiskUsageKb,
+		string? CreatedAt);
+
+/// <summary>Figures derived from the daily contribution calendar.</summary>
+internal sealed record StreakStats(
+		long Current,
+		long Longest,
+		string? BusiestDay,
+		long BusiestDayCount,
+		long ThisYear,
+		long Private);
+
 /// <summary>Per-user totals rolled up from the individual repositories.</summary>
 internal sealed record AggregateStats(
 		string Name,
@@ -15,7 +49,10 @@ internal sealed record AggregateStats(
 		long Views,
 		long Repos,
 		long LanguagesTotal,
-		IReadOnlyList<AggregatedLanguage> Languages);
+		IReadOnlyList<AggregatedLanguage> Languages,
+		ContributionBreakdown Breakdown,
+		ProfileStats Profile,
+		StreakStats Streaks);
 
 /// <summary>Applies the exclusion filters and rolls repositories up into totals.</summary>
 internal static class Aggregator
@@ -90,6 +127,34 @@ internal static class Aggregator
 				views,
 				repos,
 				languagesTotal,
-				languages);
+				languages,
+				// The three groups below are user-level rather than per-repository,
+				// so --exclude-repos and --exclude-private deliberately do not apply
+				// to them. That is why `own_repos` and `repos` can disagree.
+				new ContributionBreakdown(
+						statistics.CommitContributions,
+						statistics.PrContributions,
+						statistics.ReviewContributions,
+						statistics.IssueContributions,
+						statistics.RepoContributions),
+				new ProfileStats(
+						statistics.Followers,
+						statistics.Following,
+						statistics.StarsGiven,
+						statistics.Gists,
+						statistics.Organizations,
+						statistics.Watching,
+						statistics.Sponsors,
+						statistics.MergedPullRequests,
+						statistics.OwnRepositories,
+						statistics.DiskUsageKb,
+						statistics.CreatedAt),
+				new StreakStats(
+						statistics.CurrentStreak,
+						statistics.LongestStreak,
+						statistics.BusiestDay,
+						statistics.BusiestDayCount,
+						statistics.ContributionsThisYear,
+						statistics.PrivateContributions));
 	}
 }

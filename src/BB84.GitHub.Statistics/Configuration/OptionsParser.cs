@@ -70,6 +70,8 @@ internal static class OptionsParser
 						SetValue: static (o, v) => o.OverviewTemplate = v),
 				new("languages_template", "Use this file instead of the built-in languages template.",
 						SetValue: static (o, v) => o.LanguagesTemplate = v),
+				new("overview_fields", "Overview rows to render, in order, separated by commas. Omit for the default set.",
+						SetValue: static (o, v) => o.OverviewFields = v),
 				new("max_retries", "Retries against the contributor statistics API before cloning instead (default 25).",
 						SetValue: static (o, v) => o.MaxRetries = ParseInt(v)),
 				new("version", "Print the version and exit.",

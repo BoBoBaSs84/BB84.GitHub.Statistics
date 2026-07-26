@@ -42,6 +42,15 @@ public sealed class SvgTemplateTests
 	public void FillEmptyTemplateProducesEmptyOutput() =>
 			Assert.AreEqual(string.Empty, SvgTemplate.Fill(string.Empty, Values));
 
+	/// <summary>
+	/// Only placeholders a template references are checked. Program.cs relies on
+	/// this: it supplies every field in the overview catalogue whether or not the
+	/// template asks for them, so custom templates can use any of them.
+	/// </summary>
+	[TestMethod]
+	public void FillIgnoresValuesTheTemplateDoesNotReference() =>
+			Assert.AreEqual("Ada", SvgTemplate.Fill("{{ name }}", Values));
+
 	[TestMethod]
 	[DataRow(0L, "0")]
 	[DataRow(1L, "1")]

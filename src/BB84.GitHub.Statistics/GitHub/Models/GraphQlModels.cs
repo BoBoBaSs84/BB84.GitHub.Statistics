@@ -55,6 +55,97 @@ internal sealed class ContributionYears
 	public List<int> Years { get; set; } = [];
 }
 
+/// <summary>A GraphQL connection reduced to its <c>totalCount</c>.</summary>
+internal sealed class TotalCount
+{
+	[JsonPropertyName("totalCount")]
+	public long Count { get; set; }
+}
+
+/// <summary>The owned-repository connection, which also reports disk usage.</summary>
+internal sealed class RepositoryConnectionSummary
+{
+	[JsonPropertyName("totalCount")]
+	public long Count { get; set; }
+
+	/// <summary>Kilobytes, per the GitHub schema. Null when the token cannot see it.</summary>
+	[JsonPropertyName("totalDiskUsage")]
+	public long? TotalDiskUsage { get; set; }
+}
+
+internal sealed class ProfileViewer
+{
+	[JsonPropertyName("createdAt")]
+	public string? CreatedAt { get; set; }
+
+	[JsonPropertyName("followers")]
+	public TotalCount? Followers { get; set; }
+
+	[JsonPropertyName("following")]
+	public TotalCount? Following { get; set; }
+
+	[JsonPropertyName("starredRepositories")]
+	public TotalCount? StarredRepositories { get; set; }
+
+	[JsonPropertyName("gists")]
+	public TotalCount? Gists { get; set; }
+
+	[JsonPropertyName("organizations")]
+	public TotalCount? Organizations { get; set; }
+
+	[JsonPropertyName("watching")]
+	public TotalCount? Watching { get; set; }
+
+	[JsonPropertyName("sponsors")]
+	public TotalCount? Sponsors { get; set; }
+
+	[JsonPropertyName("mergedPullRequests")]
+	public TotalCount? MergedPullRequests { get; set; }
+
+	[JsonPropertyName("repositories")]
+	public RepositoryConnectionSummary? Repositories { get; set; }
+}
+
+internal sealed class CalendarViewer
+{
+	[JsonPropertyName("contributionsCollection")]
+	public CalendarCollection? ContributionsCollection { get; set; }
+}
+
+internal sealed class CalendarCollection
+{
+	[JsonPropertyName("restrictedContributionsCount")]
+	public long RestrictedContributionsCount { get; set; }
+
+	[JsonPropertyName("contributionCalendar")]
+	public ContributionCalendarData? ContributionCalendar { get; set; }
+}
+
+internal sealed class ContributionCalendarData
+{
+	[JsonPropertyName("totalContributions")]
+	public long TotalContributions { get; set; }
+
+	[JsonPropertyName("weeks")]
+	public List<CalendarWeek>? Weeks { get; set; }
+}
+
+internal sealed class CalendarWeek
+{
+	[JsonPropertyName("contributionDays")]
+	public List<CalendarDay>? ContributionDays { get; set; }
+}
+
+internal sealed class CalendarDay
+{
+	/// <summary>ISO <c>yyyy-MM-dd</c>.</summary>
+	[JsonPropertyName("date")]
+	public string? Date { get; set; }
+
+	[JsonPropertyName("contributionCount")]
+	public int ContributionCount { get; set; }
+}
+
 internal sealed class ContributionsViewer
 {
 	[JsonPropertyName("contributionsCollection")]
