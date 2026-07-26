@@ -175,4 +175,22 @@ internal static partial class Log
 		Level = LogLevel.Warning,
 		Message = "GitHub still exceeded its resource limits for {Month}/{Year}, which cannot be narrowed further. Some data may be omitted.")]
 	public static partial void ResourceLimitReached(ILogger logger, int month, int year);
+
+	[LoggerMessage(EventId = 56, Level = LogLevel.Information, Message = "Getting profile counters...")]
+	public static partial void GettingProfile(ILogger logger);
+
+	[LoggerMessage(
+		EventId = 57,
+		Level = LogLevel.Information,
+		Message = "Failed to get profile counters ({Status}); they will be reported as zero.")]
+	public static partial void ProfileFailed(ILogger logger, HttpStatusCode status);
+
+	[LoggerMessage(EventId = 58, Level = LogLevel.Information, Message = "Getting contribution calendar for {Year}...")]
+	public static partial void GettingCalendar(ILogger logger, int year);
+
+	[LoggerMessage(
+		EventId = 59,
+		Level = LogLevel.Information,
+		Message = "Failed to get the contribution calendar for {Year} ({Status}); streaks may be understated.")]
+	public static partial void CalendarFailed(ILogger logger, int year, HttpStatusCode status);
 }

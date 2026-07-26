@@ -20,6 +20,8 @@ internal sealed partial class StatisticsJsonContext : JsonSerializerContext;
 [JsonSerializable(typeof(GraphQlRequest))]
 [JsonSerializable(typeof(GraphQlResponse<ViewerWrapper<BasicInfoViewer>>))]
 [JsonSerializable(typeof(GraphQlResponse<ViewerWrapper<ContributionsViewer>>))]
+[JsonSerializable(typeof(GraphQlResponse<ViewerWrapper<ProfileViewer>>))]
+[JsonSerializable(typeof(GraphQlResponse<ViewerWrapper<CalendarViewer>>))]
 [JsonSerializable(typeof(List<UserEmail>))]
 [JsonSerializable(typeof(TrafficViews))]
 [JsonSerializable(typeof(List<ContributorStats>))]

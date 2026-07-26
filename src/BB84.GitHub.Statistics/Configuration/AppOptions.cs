@@ -36,6 +36,8 @@ internal sealed class AppOptions
 
 	public string? LanguagesTemplate { get; set; }
 
+	public string? OverviewFields { get; set; }
+
 	public int? MaxRetries { get; set; } = 25;
 
 	public bool Version { get; set; }
@@ -56,6 +58,13 @@ internal sealed class AppOptions
 	public IReadOnlyList<string> ExcludedRepoPatterns => SplitList(ExcludeRepos, RepoSeparators);
 
 	public IReadOnlyList<string> ExcludedLangPatterns => SplitList(ExcludeLangs, LangSeparators);
+
+	/// <summary>
+	/// The requested overview rows, in order. Empty means "use the default set".
+	/// Split like <c>--exclude-repos</c>, spaces included, since no field id
+	/// contains one.
+	/// </summary>
+	public IReadOnlyList<string> OverviewFieldIds => SplitList(OverviewFields, RepoSeparators);
 
 	private static List<string> SplitList(string? value, string separators)
 	{

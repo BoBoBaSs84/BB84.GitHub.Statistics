@@ -5,6 +5,7 @@ using BB84.GitHub.Statistics.Logging;
 using BB84.GitHub.Statistics.Rendering;
 using BB84.GitHub.Statistics.Statistics;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
@@ -59,6 +60,11 @@ ILogger programLogger = loggerFactory.CreateLogger("github-stats");
 
 try
 {
+	// Resolved before any network work, so a mistyped field name costs a second
+	// rather than a full collection run.
+	IReadOnlyList<OverviewField> overviewFields = OverviewFields.Resolve(
+			options.OverviewFieldIds is { Count: > 0 } requested ? requested : OverviewFields.Default);
+
 	StatisticsDocument statistics;
 
 	if (options.JsonInputFile is { } inputPath)
@@ -93,22 +99,31 @@ try
 
 	AggregateStats aggregate = Aggregator.Aggregate(statistics, options);
 
+	OverviewMarkup overview = OverviewRenderer.Render(overviewFields, aggregate);
+
+	// Every catalogue field is supplied, not just the selected ones. Fill only
+	// rejects placeholders a template actually references, so the unused entries
+	// cost nothing and let a hand-written --overview-template use any of them.
+	Dictionary<string, string> overviewValues = new(StringComparer.Ordinal)
+	{
+		["name"] = aggregate.Name,
+		["rows"] = overview.Rows,
+		["height"] = overview.Height.ToString(CultureInfo.InvariantCulture),
+		["inner_height"] = overview.InnerHeight.ToString(CultureInfo.InvariantCulture),
+	};
+
+	foreach (OverviewField field in OverviewFields.All)
+	{
+		overviewValues[field.Id] = field.Value(aggregate);
+	}
+
 	string overviewPath = options.OverviewOutputFile ?? "overview.svg";
 	Log.WritingData(programLogger, overviewPath);
 	WriteFile(overviewPath, SvgTemplate.Fill(
 			options.OverviewTemplate is { } overviewTemplatePath
 					? ReadFile(overviewTemplatePath)
 					: Templates.Overview,
-			new Dictionary<string, string>(StringComparer.Ordinal)
-			{
-				["name"] = aggregate.Name,
-				["stars"] = SvgTemplate.FormatNumber(aggregate.Stars),
-				["forks"] = SvgTemplate.FormatNumber(aggregate.Forks),
-				["contributions"] = SvgTemplate.FormatNumber(aggregate.Contributions),
-				["lines_changed"] = SvgTemplate.FormatNumber(aggregate.LinesChanged),
-				["views"] = SvgTemplate.FormatNumber(aggregate.Views),
-				["repos"] = SvgTemplate.FormatNumber(aggregate.Repos),
-			}));
+			overviewValues));
 
 	(string progress, string langList) = LanguagesRenderer.Render(aggregate.Languages, aggregate.LanguagesTotal);
 

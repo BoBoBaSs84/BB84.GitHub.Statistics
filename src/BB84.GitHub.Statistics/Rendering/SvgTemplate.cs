@@ -3,11 +3,22 @@ using System.Text;
 
 namespace BB84.GitHub.Statistics.Rendering;
 
-/// <summary>Thrown when a template references a placeholder with no supplied value.</summary>
-internal sealed class InvalidFieldException(string field)
-		: Exception($"Template references unknown field '{field}'.")
+/// <summary>
+/// Thrown when a template references a placeholder with no supplied value, or
+/// when <c>--overview-fields</c> names a row that does not exist.
+/// </summary>
+internal sealed class InvalidFieldException : Exception
 {
-	public string Field { get; } = field;
+	public InvalidFieldException(string field)
+			: base($"Template references unknown field '{field}'.")
+			=> Field = field;
+
+	/// <summary>For callers that can explain the problem better than the default wording.</summary>
+	public InvalidFieldException(string field, string message)
+			: base(message)
+			=> Field = field;
+
+	public string Field { get; }
 }
 
 /// <summary>

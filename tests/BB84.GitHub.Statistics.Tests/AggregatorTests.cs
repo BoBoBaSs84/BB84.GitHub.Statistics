@@ -178,4 +178,101 @@ public sealed class AggregatorTests
 
 		Assert.AreEqual("#178600", result.Languages[0].Color);
 	}
+
+	/// <summary>
+	/// The overview can show the five contribution totals individually, so they
+	/// have to survive aggregation rather than only reaching it as their sum.
+	/// </summary>
+	[TestMethod]
+	public void AggregateSplitsOutTheContributionBreakdown()
+	{
+		StatisticsDocument stats = new()
+		{
+			CommitContributions = 10,
+			PrContributions = 5,
+			ReviewContributions = 4,
+			IssueContributions = 3,
+			RepoContributions = 2,
+		};
+
+		AggregateStats result = Aggregator.Aggregate(stats, new AppOptions());
+
+		Assert.AreEqual(10, result.Breakdown.Commits);
+		Assert.AreEqual(5, result.Breakdown.Prs);
+		Assert.AreEqual(4, result.Breakdown.Reviews);
+		Assert.AreEqual(3, result.Breakdown.Issues);
+		Assert.AreEqual(2, result.Breakdown.ReposCreated);
+		Assert.AreEqual(24, result.Contributions, "the combined total still adds up");
+	}
+
+	[TestMethod]
+	public void AggregateCarriesProfileAndStreakValues()
+	{
+		StatisticsDocument stats = new()
+		{
+			CreatedAt = "2013-03-04T10:00:00Z",
+			Followers = 321,
+			Following = 21,
+			StarsGiven = 400,
+			Gists = 3,
+			Organizations = 2,
+			Watching = 44,
+			Sponsors = 1,
+			MergedPullRequests = 55,
+			OwnRepositories = 66,
+			DiskUsageKb = 2048,
+			CurrentStreak = 5,
+			LongestStreak = 88,
+			BusiestDay = "2024-03-14",
+			BusiestDayCount = 37,
+			ContributionsThisYear = 1500,
+			PrivateContributions = 250,
+		};
+
+		AggregateStats result = Aggregator.Aggregate(stats, new AppOptions());
+
+		Assert.AreEqual("2013-03-04T10:00:00Z", result.Profile.CreatedAt);
+		Assert.AreEqual(321, result.Profile.Followers);
+		Assert.AreEqual(66, result.Profile.OwnRepositories);
+		Assert.AreEqual(2048, result.Profile.DiskUsageKb);
+		Assert.AreEqual(5, result.Streaks.Current);
+		Assert.AreEqual(88, result.Streaks.Longest);
+		Assert.AreEqual("2024-03-14", result.Streaks.BusiestDay);
+		Assert.AreEqual(37, result.Streaks.BusiestDayCount);
+		Assert.AreEqual(1500, result.Streaks.ThisYear);
+		Assert.AreEqual(250, result.Streaks.Private);
+	}
+
+	/// <summary>
+	/// The profile, breakdown and streak figures are user-level, not
+	/// per-repository, so the repository filters must leave them alone. This is why
+	/// <c>own_repos</c> and <c>repos</c> can legitimately disagree.
+	/// </summary>
+	[TestMethod]
+	public void AggregateDoesNotApplyRepositoryFiltersToUserLevelValues()
+	{
+		StatisticsDocument stats = new()
+		{
+			CommitContributions = 10,
+			Followers = 321,
+			OwnRepositories = 66,
+			LongestStreak = 88,
+			Repositories =
+				[
+						Repo("jstrieb/one", stars: 3),
+								Repo("a/secret", stars: 4, isPrivate: true),
+						],
+		};
+
+		AppOptions options = new() { ExcludeRepos = "jstrieb/*", ExcludePrivate = true };
+
+		AggregateStats result = Aggregator.Aggregate(stats, options);
+
+		Assert.AreEqual(0, result.Repos, "both repositories are filtered out");
+		Assert.AreEqual(0, result.Stars);
+		Assert.AreEqual(10, result.Breakdown.Commits, "contribution totals are not per-repository");
+		Assert.AreEqual(321, result.Profile.Followers);
+		Assert.AreEqual(66, result.Profile.OwnRepositories);
+		Assert.AreEqual(88, result.Streaks.Longest);
+	}
 }

@@ -21,6 +21,23 @@ public sealed class StatisticsCollectorTests
 	private const string ResourceLimitError =
 			"""{ "type": "RESOURCE_LIMITS_EXCEEDED", "message": "Resource limits for this query exceeded." }""";
 
+	private const string EmptyProfile =
+			"""{ "data": { "viewer": { "createdAt": null, "starredRepositories": { "totalCount": 0 } } } }""";
+
+	private const string EmptyCalendar =
+			"""
+      {
+        "data": {
+          "viewer": {
+            "contributionsCollection": {
+              "restrictedContributionsCount": 0,
+              "contributionCalendar": { "totalContributions": 0, "weeks": [] }
+            }
+          }
+        }
+      }
+      """;
+
 	/// <summary>Dispatches on the request URL, and on the query text for GraphQL posts.</summary>
 	private sealed class StubHandler(Func<string, string?, (HttpStatusCode Status, string Body)> respond)
 			: HttpMessageHandler
@@ -141,6 +158,20 @@ public sealed class StatisticsCollectorTests
 				if (body.Contains("totalIssueContributions", StringComparison.Ordinal))
 				{
 					return totals(totalsCalls++);
+				}
+
+				// The profile and calendar queries answer with nothing of interest.
+				// They are routed explicitly all the same: falling through to the
+				// commits responder would consume its call indices and silently
+				// change which range the tests below see refused.
+				if (body.Contains("starredRepositories", StringComparison.Ordinal))
+				{
+					return (HttpStatusCode.OK, EmptyProfile);
+				}
+
+				if (body.Contains("contributionCalendar", StringComparison.Ordinal))
+				{
+					return (HttpStatusCode.OK, EmptyCalendar);
 				}
 
 				return commits(commitCalls++);
@@ -284,5 +315,268 @@ public sealed class StatisticsCollectorTests
 		Assert.AreEqual("ada/one", statistics.Repositories[0].Name);
 		Assert.AreEqual(7u, statistics.Repositories[0].Views);
 		Assert.AreEqual(15u, statistics.Repositories[0].LinesChanged);
+	}
+
+	// -- Profile and calendar ---------------------------------------------------
+
+	/// <summary>
+	/// Builds a collector whose profile and calendar queries are under the test's
+	/// control, and whose "today" is fixed so the current-streak calculation does
+	/// not depend on the day the suite runs.
+	/// </summary>
+	private static StatisticsCollector BuildForExtras(
+			Func<(HttpStatusCode, string)> profile,
+			Func<int, (HttpStatusCode, string)> calendar,
+			DateOnly today,
+			params int[] years)
+	{
+		int calendarCalls = 0;
+
+		StubHandler handler = new((url, body) =>
+		{
+			if (body is not null)
+			{
+				if (body.Contains("contributionYears", StringComparison.Ordinal))
+				{
+					return (HttpStatusCode.OK,
+							$$"""
+                {
+                  "data": {
+                    "viewer": {
+                      "login": "ada",
+                      "name": "Ada",
+                      "contributionsCollection": { "contributionYears": [{{string.Join(",", years)}}] }
+                    }
+                  }
+                }
+                """);
+				}
+
+				if (body.Contains("starredRepositories", StringComparison.Ordinal))
+				{
+					return profile();
+				}
+
+				if (body.Contains("contributionCalendar", StringComparison.Ordinal))
+				{
+					return calendar(calendarCalls++);
+				}
+
+				if (body.Contains("totalIssueContributions", StringComparison.Ordinal))
+				{
+					return (HttpStatusCode.OK, Data(""" "totalCommitContributions": 0 """));
+				}
+
+				return (HttpStatusCode.OK, Data(Repositories()));
+			}
+
+			if (url.EndsWith("/user/emails", StringComparison.Ordinal))
+			{
+				return (HttpStatusCode.OK, """[ { "email": "ada@example.com" } ]""");
+			}
+
+			return (HttpStatusCode.OK, """{ "count": 0 }""");
+		});
+
+		GitHubApiClient client = new(new HttpClient(handler), NullLogger<GitHubApiClient>.Instance);
+		LinesChangedResolver resolver = new(client, new StubGit(), NullLogger<LinesChangedResolver>.Instance)
+		{
+			Delay = static (_, _) => Task.CompletedTask,
+			UtcNowSeconds = static () => 0,
+		};
+
+		return new StatisticsCollector(client, resolver, NullLogger<StatisticsCollector>.Instance)
+		{
+			Delay = static (_, _) => Task.CompletedTask,
+			UtcToday = () => today,
+		};
+	}
+
+	/// <summary>A calendar response covering <paramref name="days"/> from <paramref name="start"/>.</summary>
+	private static string Calendar(DateOnly start, long restricted, long total, params int[] days)
+	{
+		IEnumerable<string> entries = days.Select((count, index) =>
+				$$"""
+        {
+          "date": "{{start.AddDays(index):yyyy-MM-dd}}",
+          "contributionCount": {{count}}
+        }
+        """);
+
+		return $$"""
+      {
+        "data": {
+          "viewer": {
+            "contributionsCollection": {
+              "restrictedContributionsCount": {{restricted}},
+              "contributionCalendar": {
+                "totalContributions": {{total}},
+                "weeks": [ { "contributionDays": [ {{string.Join(",", entries)}} ] } ]
+              }
+            }
+          }
+        }
+      }
+      """;
+	}
+
+	[TestMethod]
+	public async Task CollectReadsProfileCounters()
+	{
+		StatisticsCollector collector = BuildForExtras(
+				profile: () => Ok(
+						"""
+            {
+              "data": {
+                "viewer": {
+                  "createdAt": "2013-03-04T10:00:00Z",
+                  "followers": { "totalCount": 321 },
+                  "following": { "totalCount": 21 },
+                  "starredRepositories": { "totalCount": 400 },
+                  "gists": { "totalCount": 3 },
+                  "organizations": { "totalCount": 2 },
+                  "watching": { "totalCount": 44 },
+                  "sponsors": { "totalCount": 1 },
+                  "mergedPullRequests": { "totalCount": 55 },
+                  "repositories": { "totalCount": 66, "totalDiskUsage": 2048 }
+                }
+              }
+            }
+            """),
+				calendar: _ => Ok(EmptyCalendar),
+				new DateOnly(2024, 6, 1),
+				2024);
+
+		StatisticsDocument statistics = await collector.CollectAsync("token", maxRetries: 1, CancellationToken.None);
+
+		Assert.AreEqual("2013-03-04T10:00:00Z", statistics.CreatedAt);
+		Assert.AreEqual(321, statistics.Followers);
+		Assert.AreEqual(21, statistics.Following);
+		Assert.AreEqual(400, statistics.StarsGiven);
+		Assert.AreEqual(3, statistics.Gists);
+		Assert.AreEqual(2, statistics.Organizations);
+		Assert.AreEqual(44, statistics.Watching);
+		Assert.AreEqual(1, statistics.Sponsors);
+		Assert.AreEqual(55, statistics.MergedPullRequests);
+		Assert.AreEqual(66, statistics.OwnRepositories);
+		Assert.AreEqual(2048, statistics.DiskUsageKb);
+	}
+
+	/// <summary>
+	/// The profile counters are decorative. A token too narrowly scoped for
+	/// <c>sponsors</c> must cost the caller those numbers, not the entire run.
+	/// </summary>
+	[TestMethod]
+	public async Task CollectTreatsAFailedProfileQueryAsZeros()
+	{
+		StatisticsCollector collector = BuildForExtras(
+				profile: () => (HttpStatusCode.InternalServerError, "boom"),
+				calendar: _ => Ok(EmptyCalendar),
+				new DateOnly(2024, 6, 1),
+				2024);
+
+		StatisticsDocument statistics = await collector.CollectAsync("token", maxRetries: 1, CancellationToken.None);
+
+		Assert.IsNull(statistics.CreatedAt);
+		Assert.AreEqual(0, statistics.Followers);
+		Assert.AreEqual("Ada", statistics.Name, "the rest of the document is still collected");
+	}
+
+	[TestMethod]
+	public async Task CollectTreatsAFailedCalendarQueryAsNoStreak()
+	{
+		StatisticsCollector collector = BuildForExtras(
+				profile: () => Ok(EmptyProfile),
+				calendar: _ => (HttpStatusCode.InternalServerError, "boom"),
+				new DateOnly(2024, 6, 1),
+				2024);
+
+		StatisticsDocument statistics = await collector.CollectAsync("token", maxRetries: 1, CancellationToken.None);
+
+		Assert.AreEqual(0, statistics.LongestStreak);
+		Assert.AreEqual(0, statistics.CurrentStreak);
+		Assert.IsNull(statistics.BusiestDay);
+		Assert.AreEqual("Ada", statistics.Name, "the rest of the document is still collected");
+	}
+
+	[TestMethod]
+	public async Task CollectComputesStreaksFromTheCalendar()
+	{
+		// 1 2 3 4 | 0 | 6 7 -> a four-day run, a gap, then a two-day run ending on
+		// the 7th. Today is the 8th, so the trailing run is still current.
+		StatisticsCollector collector = BuildForExtras(
+				profile: () => Ok(EmptyProfile),
+				calendar: _ => Ok(Calendar(new DateOnly(2024, 6, 1), restricted: 9, total: 40, 1, 2, 3, 5, 0, 1, 4)),
+				new DateOnly(2024, 6, 8),
+				2024);
+
+		StatisticsDocument statistics = await collector.CollectAsync("token", maxRetries: 1, CancellationToken.None);
+
+		Assert.AreEqual(4, statistics.LongestStreak);
+		Assert.AreEqual(2, statistics.CurrentStreak);
+		Assert.AreEqual("2024-06-04", statistics.BusiestDay);
+		Assert.AreEqual(5, statistics.BusiestDayCount);
+		Assert.AreEqual(40, statistics.ContributionsThisYear);
+		Assert.AreEqual(9, statistics.PrivateContributions);
+	}
+
+	/// <summary>A run that stopped before yesterday is no longer current.</summary>
+	[TestMethod]
+	public async Task CollectReportsNoCurrentStreakWhenTheRunHasLapsed()
+	{
+		StatisticsCollector collector = BuildForExtras(
+				profile: () => Ok(EmptyProfile),
+				calendar: _ => Ok(Calendar(new DateOnly(2024, 6, 1), restricted: 0, total: 3, 1, 1, 1)),
+				new DateOnly(2024, 6, 20),
+				2024);
+
+		StatisticsDocument statistics = await collector.CollectAsync("token", maxRetries: 1, CancellationToken.None);
+
+		Assert.AreEqual(3, statistics.LongestStreak);
+		Assert.AreEqual(0, statistics.CurrentStreak);
+	}
+
+	/// <summary>
+	/// A day still in progress has not broken anything, so a run reaching yesterday
+	/// counts even when today is empty.
+	/// </summary>
+	[TestMethod]
+	public async Task CollectKeepsTheStreakWhenTodayIsStillEmpty()
+	{
+		StatisticsCollector collector = BuildForExtras(
+				profile: () => Ok(EmptyProfile),
+				calendar: _ => Ok(Calendar(new DateOnly(2024, 6, 1), restricted: 0, total: 3, 1, 1, 1, 0)),
+				new DateOnly(2024, 6, 4),
+				2024);
+
+		StatisticsDocument statistics = await collector.CollectAsync("token", maxRetries: 1, CancellationToken.None);
+
+		Assert.AreEqual(3, statistics.CurrentStreak);
+	}
+
+	/// <summary>
+	/// GitHub's calendar years overlap at the edges, and a run spanning the new
+	/// year has to be seen as one streak rather than two.
+	/// </summary>
+	[TestMethod]
+	public async Task CollectJoinsStreaksAcrossAYearBoundary()
+	{
+		StatisticsCollector collector = BuildForExtras(
+				profile: () => Ok(EmptyProfile),
+				calendar: call => Ok(call == 0
+						// 2023 ends with three active days, the last being 31 December.
+						? Calendar(new DateOnly(2023, 12, 29), restricted: 1, total: 3, 1, 1, 1)
+						// 2024 opens with two more, and repeats 31 December as GitHub does.
+						: Calendar(new DateOnly(2023, 12, 31), restricted: 2, total: 3, 1, 1, 1)),
+				new DateOnly(2024, 1, 3),
+				2023,
+				2024);
+
+		StatisticsDocument statistics = await collector.CollectAsync("token", maxRetries: 1, CancellationToken.None);
+
+		Assert.AreEqual(5, statistics.LongestStreak, "29 Dec to 2 Jan is one run, not two");
+		Assert.AreEqual(5, statistics.CurrentStreak);
+		Assert.AreEqual(3, statistics.PrivateContributions, "restricted counts add up across years");
+		Assert.AreEqual(3, statistics.ContributionsThisYear, "only the latest year's calendar total");
 	}
 }

@@ -81,6 +81,8 @@ Collect once, then re-render as often as you like:
 
 `-` works as a path for stdin and stdout, so `--overview-output-file -` streams the SVG (all logging goes to stderr).
 
+The JSON document carries the profile and streak figures alongside the repository data, so a single collection pass supports any later `--overview-fields` selection. Older `stats.json` files still load — the added keys simply read back as zero.
+
 ### Custom templates
 
 ```bash
@@ -88,7 +90,57 @@ Collect once, then re-render as often as you like:
 ./github-stats --overview-template my-overview.svg
 ```
 
-Templates use `{{ field }}` placeholders. Overview accepts `name`, `stars`, `forks`, `contributions`, `lines_changed`, `views`, `repos`; languages accepts `progress` and `lang_list`. An unknown placeholder fails the run rather than rendering blank.
+Templates use `{{ field }}` placeholders. The overview template accepts `name`, `rows`, `height`, `inner_height`, and every field id from the table below; the languages template accepts `progress` and `lang_list`. An unknown placeholder fails the run rather than rendering blank.
+
+`rows` is the whole `<tbody>` contents, built from `--overview-fields`, and `height` / `inner_height` grow with the number of rows. A template can ignore all three and lay out individual values by hand instead — `{{ stars }}`, `{{ followers }}` and the rest are always supplied, whether or not they were selected.
+
+### Choosing which rows to show
+
+`--overview-fields` takes an ordered, comma-separated list. Omit it and you get the six rows the tool has always shown: `stars,forks,contributions,lines_changed,views,repos`.
+
+```bash
+./github-stats --overview-fields "stars,forks,followers,commits,prs_merged,current_streak"
+```
+
+The list is the row order, so it controls layout as well as membership. An unknown or repeated id fails the run before any API call is made.
+
+| Field id                  | Row label                          | Notes                                     |
+| ------------------------- | ---------------------------------- | ----------------------------------------- |
+| `stars`                   | Stars                              | Sum over repositories you contributed to. |
+| `forks`                   | Forks                              |                                           |
+| `contributions`           | All-time contributions             | The five totals below, combined.          |
+| `lines_changed`           | Lines of code changed              |                                           |
+| `views`                   | Repository views (past two weeks)  |                                           |
+| `repos`                   | Repositories with contributions    |                                           |
+| `commits`                 | Commits                            |                                           |
+| `prs`                     | Pull requests opened               |                                           |
+| `reviews`                 | Pull requests reviewed             |                                           |
+| `issues`                  | Issues opened                      |                                           |
+| `repos_created`           | Repositories created               |                                           |
+| `followers`               | Followers                          |                                           |
+| `following`               | Following                          |                                           |
+| `stars_given`             | Stars given                        |                                           |
+| `own_repos`               | Repositories owned                 | Repositories you own, not contributed to. |
+| `prs_merged`              | Pull requests merged               |                                           |
+| `gists`                   | Public gists                       |                                           |
+| `organizations`           | Organizations                      |                                           |
+| `watching`                | Repositories watched               |                                           |
+| `sponsors`                | Sponsors                           |                                           |
+| `disk_usage`              | Repository disk usage              | Owned repositories, e.g. `1.2 GB`.        |
+| `account_age`             | Account age                        | Whole years, e.g. `13 years`.             |
+| `member_since`            | Member since                       | e.g. `March 2013`.                        |
+| `current_streak`          | Current streak                     | As of collection time — see below.        |
+| `longest_streak`          | Longest streak                     |                                           |
+| `contributions_this_year` | Contributions this year            |                                           |
+| `busiest_day`             | Busiest day                        | e.g. `2024-03-14 (37)`.                   |
+| `private_contributions`   | Private contributions              | Contributions the token cannot itemise.   |
+
+Two things worth knowing:
+
+- `own_repos` and `repos` are different numbers and can legitimately disagree. The profile, contribution-breakdown and streak rows are user-level, so `--exclude-repos` and `--exclude-private` do not filter them; only the repository totals at the top of the table are filtered.
+- Streaks are a snapshot taken when the statistics were collected. Re-rendering an old `stats.json` with `--json-input-file` reports the streak as it stood then, not today.
+
+The profile and streak figures come from two extra GraphQL queries — one overall, plus one per contribution year. They are always collected, so a `stats.json` can be re-rendered with any field selection later. Should either query fail, the affected rows report zero rather than failing the run.
 
 ## Running in a pipeline
 
@@ -109,6 +161,7 @@ The workflow in [`.github/workflows/main.yml`](.github/workflows/main.yml) is th
   env:
     ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
     EXCLUDE_REPOS: ${{ secrets.EXCLUDE_REPOS }}
+    OVERVIEW_FIELDS: "stars,forks,contributions,lines_changed,views,repos"
     SILENT: "true"
     MAX_RETRIES: 5
 ```
@@ -134,6 +187,7 @@ Every option is settable as a flag or an environment variable: `--access-token` 
 | `--exclude-private`                  | Leave private repositories out of the totals.                 |
 | `--overview-output-file`             | Overview SVG destination (default `overview.svg`).            |
 | `--languages-output-file`            | Languages SVG destination (default `languages.svg`).          |
+| `--overview-fields`                  | Overview rows to render, in order. Omit for the default set.  |
 | `--overview-template`                | Use this file instead of the built-in overview template.      |
 | `--languages-template`               | Use this file instead of the built-in languages template.     |
 | `--dump-overview-template`           | Write the built-in overview template here and exit.           |
