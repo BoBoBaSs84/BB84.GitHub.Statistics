@@ -34,6 +34,12 @@ internal sealed class StatisticsCollector(
 	/// <summary>Injected so tests do not actually sleep.</summary>
 	public Func<TimeSpan, CancellationToken, Task> Delay { get; init; } = Task.Delay;
 
+	/// <summary>
+	/// Injected so the current-streak calculation is deterministic in tests, which
+	/// would otherwise depend on the day they run.
+	/// </summary>
+	public Func<DateOnly> UtcToday { get; init; } = static () => DateOnly.FromDateTime(DateTime.UtcNow);
+
 	public async Task<StatisticsDocument> CollectAsync(string token, int? maxRetries, CancellationToken ct)
 	{
 		StatisticsDocument statistics = await CollectRepositoriesAsync(ct).ConfigureAwait(false);
@@ -115,18 +121,170 @@ internal sealed class StatisticsCollector(
 			Emails = info.Emails,
 		};
 
+		await CollectProfileAsync(statistics, ct).ConfigureAwait(false);
+
+		// Keyed by date so the overlapping edges GitHub includes at the start and
+		// end of each calendar year collapse instead of double-counting.
+		Dictionary<DateOnly, int> days = [];
+
+		int latestYear = info.Years.Count > 0 ? info.Years.Max() : 0;
+
 		HashSet<string> seen = new(StringComparer.Ordinal);
 		foreach (int year in info.Years)
 		{
 			await CollectTotalsAsync(statistics, year, startMonth: 0, months: 12, ct).ConfigureAwait(false);
+			await CollectCalendarAsync(statistics, days, year, year == latestYear, ct).ConfigureAwait(false);
 			await CollectRangeAsync(statistics, seen, year, startMonth: 0, months: 12, ct).ConfigureAwait(false);
 		}
+
+		ApplyStreaks(statistics, days);
 
 		statistics.Repositories = [.. statistics.Repositories
 						.OrderByDescending(static r => r.Views)
 						.ThenByDescending(static r => (long)r.Stars + r.Forks)];
 
 		return statistics;
+	}
+
+	/// <summary>
+	/// Fills in the profile counters. A failure here is logged and left as zero
+	/// rather than thrown: these are decorative, and <c>sponsors</c> or
+	/// <c>totalDiskUsage</c> failing on a narrowly scoped token must not cost the
+	/// caller the entire run.
+	/// </summary>
+	private async Task CollectProfileAsync(StatisticsDocument statistics, CancellationToken ct)
+	{
+		Log.GettingProfile(logger);
+
+		ApiResponse response = await client.GraphQlAsync(GraphQlQueries.ProfileInfo, null, ct).ConfigureAwait(false);
+		if (!response.IsOk)
+		{
+			Log.ProfileFailed(logger, response.Status);
+			return;
+		}
+
+		ProfileViewer? viewer = client.TryDeserialize(
+				response,
+				GitHubJsonContext.Default.GraphQlResponseViewerWrapperProfileViewer,
+				"profile counters")
+				?.Data?.Viewer;
+
+		if (viewer is null)
+		{
+			Log.ProfileFailed(logger, response.Status);
+			return;
+		}
+
+		statistics.CreatedAt = viewer.CreatedAt;
+		statistics.Followers = viewer.Followers?.Count ?? 0;
+		statistics.Following = viewer.Following?.Count ?? 0;
+		statistics.StarsGiven = viewer.StarredRepositories?.Count ?? 0;
+		statistics.Gists = viewer.Gists?.Count ?? 0;
+		statistics.Organizations = viewer.Organizations?.Count ?? 0;
+		statistics.Watching = viewer.Watching?.Count ?? 0;
+		statistics.Sponsors = viewer.Sponsors?.Count ?? 0;
+		statistics.MergedPullRequests = viewer.MergedPullRequests?.Count ?? 0;
+		statistics.OwnRepositories = viewer.Repositories?.Count ?? 0;
+		statistics.DiskUsageKb = viewer.Repositories?.TotalDiskUsage ?? 0;
+	}
+
+	/// <summary>
+	/// Accumulates one year of the daily contribution calendar into
+	/// <paramref name="days"/>. Degrades to no data on failure, for the same reason
+	/// as <see cref="CollectProfileAsync"/>.
+	/// </summary>
+	private async Task CollectCalendarAsync(
+			StatisticsDocument statistics,
+			Dictionary<DateOnly, int> days,
+			int year,
+			bool isLatestYear,
+			CancellationToken ct)
+	{
+		Log.GettingCalendar(logger, year);
+
+		ApiResponse response = await client
+				.GraphQlAsync(GraphQlQueries.ContributionCalendar, BuildRange(year, startMonth: 0, months: 12), ct)
+				.ConfigureAwait(false);
+
+		if (!response.IsOk)
+		{
+			Log.CalendarFailed(logger, year, response.Status);
+			return;
+		}
+
+		CalendarCollection? collection = client.TryDeserialize(
+				response,
+				GitHubJsonContext.Default.GraphQlResponseViewerWrapperCalendarViewer,
+				$"contribution calendar for {year}")
+				?.Data?.Viewer?.ContributionsCollection;
+
+		if (collection is null)
+		{
+			Log.CalendarFailed(logger, year, response.Status);
+			return;
+		}
+
+		statistics.PrivateContributions += collection.RestrictedContributionsCount;
+
+		if (isLatestYear)
+		{
+			statistics.ContributionsThisYear = collection.ContributionCalendar?.TotalContributions ?? 0;
+		}
+
+		foreach (CalendarWeek week in collection.ContributionCalendar?.Weeks ?? [])
+		{
+			foreach (CalendarDay day in week.ContributionDays ?? [])
+			{
+				if (DateOnly.TryParse(day.Date, CultureInfo.InvariantCulture, out DateOnly date))
+				{
+					days[date] = Math.Max(days.GetValueOrDefault(date), day.ContributionCount);
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// Derives the streak figures from the accumulated calendar and stores them on
+	/// the document, so that <c>stats.json</c> carries the answers rather than the
+	/// several thousand raw days they came from.
+	/// </summary>
+	private void ApplyStreaks(StatisticsDocument statistics, Dictionary<DateOnly, int> days)
+	{
+		if (days.Count == 0)
+		{
+			return;
+		}
+
+		List<DateOnly> active = [.. days.Where(static d => d.Value > 0).Select(static d => d.Key).Order()];
+
+		KeyValuePair<DateOnly, int> busiest = days
+				.OrderByDescending(static d => d.Value)
+				.ThenBy(static d => d.Key)
+				.First();
+
+		if (busiest.Value > 0)
+		{
+			statistics.BusiestDay = busiest.Key.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+			statistics.BusiestDayCount = busiest.Value;
+		}
+
+		long longest = 0, run = 0;
+		DateOnly previous = default;
+		foreach (DateOnly date in active)
+		{
+			run = run > 0 && date == previous.AddDays(1) ? run + 1 : 1;
+			longest = Math.Max(longest, run);
+			previous = date;
+		}
+
+		statistics.LongestStreak = longest;
+
+		// The run only counts as current if it reaches yesterday; a day that is
+		// still in progress has not broken anything, so today being empty is fine.
+		DateOnly today = UtcToday();
+		statistics.CurrentStreak = active.Count > 0 && (previous == today || previous == today.AddDays(-1))
+				? run
+				: 0;
 	}
 
 	/// <summary>The outcome of one contributions query.</summary>

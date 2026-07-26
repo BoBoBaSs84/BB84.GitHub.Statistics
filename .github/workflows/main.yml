@@ -47,7 +47,9 @@ jobs:
 
     - name: Generate images
       run: |
-        "${RUNNER_TEMP}/app/github-stats"
+        "${RUNNER_TEMP}/app/github-stats" \
+          --overview-fields "stars,forks,contributions,lines_changed,views,repos,commits,prs,reviews,issues,followers,following,prs_merged,disk_usage,member_since,current_streak,longest_streak,contributions_this_year,busiest_day" \
+          --verbose
       env:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         EXCLUDE_REPOS: ${{ secrets.EXCLUDE_REPOS }}

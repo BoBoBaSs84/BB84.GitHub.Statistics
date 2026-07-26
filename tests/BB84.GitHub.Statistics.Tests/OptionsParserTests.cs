@@ -154,8 +154,7 @@ public sealed class OptionsParserTests
 		string[] expected = ["a/one", "a/two", "a/three", "a/four"];
 		AppOptions options = new() { ExcludeRepos = "a/one, a/two|a/three\ta/four" };
 
-		Assert.AreSequenceEqual(
-				expected, options.ExcludedRepoPatterns.ToArray());
+		Assert.AreSequenceEqual(expected, [.. options.ExcludedRepoPatterns]);
 	}
 
 	[TestMethod]
@@ -164,7 +163,62 @@ public sealed class OptionsParserTests
 		string[] expected = ["Jupyter Notebook", "C#"];
 		AppOptions options = new() { ExcludeLangs = "Jupyter Notebook, C#" };
 
-		Assert.AreSequenceEqual(
-				expected, options.ExcludedLangPatterns.ToArray());
+		Assert.AreSequenceEqual(expected, [.. options.ExcludedLangPatterns]);
+	}
+
+	[TestMethod]
+	public void ParseReadsOverviewFields()
+	{
+		ParseResult result = Parse(["--access-token", "abc", "--overview-fields", "stars,followers"]);
+
+		Assert.AreEqual(ParseOutcome.Success, result.Outcome);
+		Assert.AreEqual("stars,followers", result.Options.OverviewFields);
+	}
+
+	[TestMethod]
+	public void ParseReadsOverviewFieldsFromEnvironment()
+	{
+		ParseResult result = Parse(
+				[],
+				new Dictionary<string, string>
+				{
+					["ACCESS_TOKEN"] = "abc",
+					["OVERVIEW_FIELDS"] = "stars,forks",
+				});
+
+		Assert.AreEqual("stars,forks", result.Options.OverviewFields);
+	}
+
+	[TestMethod]
+	public void ParseOverviewFieldsFromCommandLineBeatsEnvironment()
+	{
+		ParseResult result = Parse(
+				["--access-token", "abc", "--overview-fields", "from-cli"],
+				new Dictionary<string, string> { ["OVERVIEW_FIELDS"] = "from-env" });
+
+		Assert.AreEqual("from-cli", result.Options.OverviewFields);
+	}
+
+	/// <summary>Absent means "render the default rows", which Program.cs decides, not the parser.</summary>
+	[TestMethod]
+	public void OverviewFieldsAreUnsetByDefault()
+	{
+		AppOptions options = new();
+
+		Assert.IsNull(options.OverviewFields);
+		Assert.IsEmpty(options.OverviewFieldIds);
+	}
+
+	/// <summary>
+	/// Split like <c>--exclude-repos</c> rather than <c>--exclude-langs</c>: no
+	/// field id contains a space, so a stray one should not create an empty entry.
+	/// </summary>
+	[TestMethod]
+	public void OverviewFieldIdsSplitOnCommasAndSpaces()
+	{
+		string[] expected = ["stars", "forks", "followers", "commits"];
+		AppOptions options = new() { OverviewFields = "stars, forks followers|commits" };
+
+		Assert.AreSequenceEqual(expected, [.. options.OverviewFieldIds]);
 	}
 }
