@@ -49,6 +49,7 @@ jobs:
       run: |
         "${RUNNER_TEMP}/app/github-stats" \
           --overview-fields "stars,forks,contributions,lines_changed,views,repos,commits,prs,reviews,issues,followers,following,prs_merged,disk_usage,member_since,current_streak,longest_streak,contributions_this_year,busiest_day" \
+          --languages-fields "rank,name,percent,size,lines,repos" \
           --verbose
       env:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
