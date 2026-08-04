@@ -65,6 +65,9 @@ try
 	IReadOnlyList<OverviewField> overviewFields = OverviewFields.Resolve(
 			options.OverviewFieldIds is { Count: > 0 } requested ? requested : OverviewFields.Default);
 
+	IReadOnlyList<LanguageField> languageFields = LanguageFields.Resolve(
+			options.LanguagesFieldIds is { Count: > 0 } requestedLangs ? requestedLangs : LanguageFields.Default);
+
 	StatisticsDocument statistics;
 
 	if (options.JsonInputFile is { } inputPath)
@@ -125,7 +128,10 @@ try
 					: Templates.Overview,
 			overviewValues));
 
-	(string progress, string langList) = LanguagesRenderer.Render(aggregate.Languages, aggregate.LanguagesTotal);
+	LanguagesMarkup languages = LanguagesRenderer.Render(
+			aggregate.Languages,
+			aggregate.LanguagesTotal,
+			languageFields);
 
 	string languagesPath = options.LanguagesOutputFile ?? "languages.svg";
 	Log.WritingData(programLogger, languagesPath);
@@ -135,8 +141,11 @@ try
 					: Templates.Languages,
 			new Dictionary<string, string>(StringComparer.Ordinal)
 			{
-				["lang_list"] = langList,
-				["progress"] = progress,
+				["lang_list"] = languages.LangList,
+				["progress"] = languages.Progress,
+				["summary"] = languages.Summary,
+				["height"] = languages.Height.ToString(CultureInfo.InvariantCulture),
+				["inner_height"] = languages.InnerHeight.ToString(CultureInfo.InvariantCulture),
 			}));
 
 	return 0;

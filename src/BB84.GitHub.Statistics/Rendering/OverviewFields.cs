@@ -249,6 +249,8 @@ internal static class OverviewFields
 					? "none"
 					: string.Create(CultureInfo.InvariantCulture, $"{date} ({SvgTemplate.FormatNumber(count)})");
 
+	private static string Plural(long count) => SvgTemplate.Plural(count);
+
 	private static bool TryParseCreatedAt(string? value, out DateTimeOffset created)
 	{
 		if (string.IsNullOrEmpty(value))
@@ -264,5 +266,4 @@ internal static class OverviewFields
 				out created);
 	}
 
-	private static string Plural(long count) => count == 1 ? string.Empty : "s";
 }
