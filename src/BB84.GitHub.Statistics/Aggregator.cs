@@ -68,6 +68,11 @@ internal static class Aggregator
 		// first-seen order after sorting.
 		Dictionary<string, long> languageSizes = new(StringComparer.Ordinal);
 		Dictionary<string, string?> languageColors = new(StringComparer.Ordinal);
+
+		// How many counted repositories report each language. Derived here rather
+		// than persisted, so existing stats.json files keep working: the per-
+		// repository language lists they already carry are all this needs.
+		Dictionary<string, int> languageRepos = new(StringComparer.Ordinal);
 		List<string> languageOrder = [];
 
 		foreach (RepositoryStats repository in statistics.Repositories)
@@ -108,6 +113,10 @@ internal static class Aggregator
 
 				languageSizes[language.Name] = total + language.Size;
 				languagesTotal += language.Size;
+
+				// One increment per edge, matching how the size rollup above already
+				// assumes GitHub reports each language at most once per repository.
+				languageRepos[language.Name] = languageRepos.GetValueOrDefault(language.Name) + 1;
 			}
 		}
 
@@ -115,7 +124,8 @@ internal static class Aggregator
 						.Select(name => new AggregatedLanguage(
 								name,
 								languageSizes[name],
-								languageColors.GetValueOrDefault(name)))
+								languageColors.GetValueOrDefault(name),
+								languageRepos.GetValueOrDefault(name)))
 						.OrderByDescending(static l => l.Size)];
 
 		return new AggregateStats(

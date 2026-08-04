@@ -38,6 +38,8 @@ internal sealed class AppOptions
 
 	public string? OverviewFields { get; set; }
 
+	public string? LanguagesFields { get; set; }
+
 	public int? MaxRetries { get; set; } = 25;
 
 	public bool Version { get; set; }
@@ -65,6 +67,12 @@ internal sealed class AppOptions
 	/// contains one.
 	/// </summary>
 	public IReadOnlyList<string> OverviewFieldIds => SplitList(OverviewFields, RepoSeparators);
+
+	/// <summary>
+	/// The requested language legend spans, in order. Empty means "use the default
+	/// set". Split like <see cref="OverviewFieldIds"/>: no field id contains a space.
+	/// </summary>
+	public IReadOnlyList<string> LanguagesFieldIds => SplitList(LanguagesFields, RepoSeparators);
 
 	private static List<string> SplitList(string? value, string separators)
 	{

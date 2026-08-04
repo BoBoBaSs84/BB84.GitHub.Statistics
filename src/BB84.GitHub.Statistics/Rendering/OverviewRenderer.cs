@@ -69,9 +69,9 @@ internal static class OverviewRenderer
 
 			_ = rows.Append("><td>")
 					.Append(field.Icon)
-					.Append(Escape(field.Label))
+					.Append(SvgTemplate.Escape(field.Label))
 					.Append("</td><td>")
-					.Append(Escape(field.Value(stats)))
+					.Append(SvgTemplate.Escape(field.Value(stats)))
 					.Append("</td></tr>");
 		}
 
@@ -80,25 +80,5 @@ internal static class OverviewRenderer
 		int height = ChromeHeight + (RowHeight * fields.Count);
 
 		return new OverviewMarkup(rows.ToString(), height, height - InnerInset);
-	}
-
-	/// <summary>
-	/// Escapes text destined for the XHTML inside the <c>&lt;foreignObject&gt;</c>.
-	/// </summary>
-	/// <remarks>
-	/// An SVG is parsed as XML, so a stray <c>&amp;</c> in a label or a value is
-	/// not a cosmetic problem: it makes the whole document fail to render.
-	/// </remarks>
-	private static string Escape(string value)
-	{
-		if (value.AsSpan().IndexOfAny('&', '<', '>') < 0)
-		{
-			return value;
-		}
-
-		return value
-				.Replace("&", "&amp;", StringComparison.Ordinal)
-				.Replace("<", "&lt;", StringComparison.Ordinal)
-				.Replace(">", "&gt;", StringComparison.Ordinal);
 	}
 }

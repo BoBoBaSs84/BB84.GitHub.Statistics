@@ -1,4 +1,4 @@
-<svg id="gh-dark-mode-only" width="360" height="210" xmlns="http://www.w3.org/2000/svg">
+<svg id="gh-dark-mode-only" width="360" height="{{ height }}" xmlns="http://www.w3.org/2000/svg">
 <style>
 svg {
   font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif, Apple Color Emoji, Segoe UI Emoji;
@@ -41,6 +41,18 @@ h2 {
   fill: #c9d1d9;
 }
 
+div.summary {
+  font-size: 12px;
+  line-height: 21px;
+  color: rgb(88, 96, 105);
+  margin-top: 0;
+  margin-bottom: 0.5em;
+}
+
+#gh-dark-mode-only:target div.summary {
+  color: #8b949e;
+}
+
 ul {
   list-style: none;
   padding-left: 0;
@@ -65,7 +77,6 @@ li {
 }
 
 div.ellipsis {
-  height: 176px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -114,21 +125,35 @@ div.ellipsis {
   color: #c9d1d9;
 }
 
-.percent {
-  color: rgb(88, 96, 105)
+/* The metric spans, selectable through --languages-fields. The right margin
+   separates adjacent ones; on the last one it sits inside the 1ch gap the li
+   already carries. */
+.percent,
+.rank,
+.size,
+.lines,
+.repos {
+  color: rgb(88, 96, 105);
+  margin-right: 4px;
 }
 
-#gh-dark-mode-only:target .percent {
+#gh-dark-mode-only:target .percent,
+#gh-dark-mode-only:target .rank,
+#gh-dark-mode-only:target .size,
+#gh-dark-mode-only:target .lines,
+#gh-dark-mode-only:target .repos {
   color: #8b949e;
 }
 </style>
 <g>
 <rect x="5" y="5" id="background" />
 <g>
-<foreignObject x="21" y="17" width="318" height="176">
+<foreignObject x="21" y="17" width="318" height="{{ inner_height }}">
 <div xmlns="http://www.w3.org/1999/xhtml" class="ellipsis">
 
 <h2>Languages Used (By File Size)</h2>
+
+<div class="summary">{{ summary }}</div>
 
 <div>
 <span class="progress">

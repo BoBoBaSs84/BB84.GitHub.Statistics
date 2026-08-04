@@ -90,9 +90,11 @@ The JSON document carries the profile and streak figures alongside the repositor
 ./github-stats --overview-template my-overview.svg
 ```
 
-Templates use `{{ field }}` placeholders. The overview template accepts `name`, `rows`, `height`, `inner_height`, and every field id from the table below; the languages template accepts `progress` and `lang_list`. An unknown placeholder fails the run rather than rendering blank.
+Templates use `{{ field }}` placeholders. The overview template accepts `name`, `rows`, `height`, `inner_height`, and every field id from the table below; the languages template accepts `progress`, `lang_list`, `summary`, `height` and `inner_height`. An unknown placeholder fails the run rather than rendering blank.
 
 `rows` is the whole `<tbody>` contents, built from `--overview-fields`, and `height` / `inner_height` grow with the number of rows. A template can ignore all three and lay out individual values by hand instead — `{{ stars }}`, `{{ followers }}` and the rest are always supplied, whether or not they were selected.
+
+On the languages card, `lang_list` is the whole `<ul>` contents, `summary` is the totals line under the heading, and `height` / `inner_height` grow to fit however many lines the legend wraps to. Unlike the overview, the languages template is given exactly these five values and nothing else.
 
 ### Choosing which rows to show
 
@@ -142,6 +144,27 @@ Two things worth knowing:
 
 The profile and streak figures come from two extra GraphQL queries — one overall, plus one per contribution year. They are always collected, so a `stats.json` can be re-rendered with any field selection later. Should either query fail, the affected rows report zero rather than failing the run.
 
+### Choosing what the language legend shows
+
+`--languages-fields` works the same way for the languages card: an ordered, comma-separated list. Omit it and each entry shows what it always has, the name and the percentage.
+
+```bash
+./github-stats --languages-fields "rank,name,percent,size,lines,repos"
+```
+
+| Field id  | Renders       | Notes                                               |
+| --------- | ------------- | --------------------------------------------------- |
+| `rank`    | `1.`          | Position in the size-descending list.               |
+| `name`    | `C#`          | The language name, as GitHub's linguist reports it. |
+| `percent` | `56.02%`      | Share of the byte total.                            |
+| `size`    | `5 MB`        | Bytes attributed to the language.                   |
+| `lines`   | `~169k lines` | **Estimated** — see below.                          |
+| `repos`   | `2 repos`     | How many counted repositories use it.               |
+
+The card grows to fit the legend rather than clipping it, so a long list is safe: adding fields makes each entry wider, which makes the card taller.
+
+`lines` is an estimate, and is always shown with a `~`. GitHub's API reports only bytes per language — there is no per-language line count or file count anywhere in the REST or GraphQL surface — so the figure is the byte total divided by a typical line length for that language. Treat it as an order of magnitude, not a measurement. `size`, `percent` and `repos` are exact.
+
 ## Running in a pipeline
 
 The workflow in [`.github/workflows/main.yml`](.github/workflows/main.yml) is the reference setup: it runs daily, generates the SVGs, and commits them to a `generated` branch so they can be embedded in a profile README.
@@ -188,6 +211,7 @@ Every option is settable as a flag or an environment variable: `--access-token` 
 | `--overview-output-file`             | Overview SVG destination (default `overview.svg`).            |
 | `--languages-output-file`            | Languages SVG destination (default `languages.svg`).          |
 | `--overview-fields`                  | Overview rows to render, in order. Omit for the default set.  |
+| `--languages-fields`                 | Legend spans to render, in order. Omit for the default set.   |
 | `--overview-template`                | Use this file instead of the built-in overview template.      |
 | `--languages-template`               | Use this file instead of the built-in languages template.     |
 | `--dump-overview-template`           | Write the built-in overview template here and exit.           |

@@ -162,6 +162,52 @@ public sealed class AggregatorTests
 		Assert.AreEqual(1, result.Repos);
 	}
 
+	/// <summary>
+	/// The legend can show how many repositories use a language. GitHub reports no
+	/// such figure, so it is counted here, where every repository x language pair is
+	/// already being visited.
+	/// </summary>
+	[TestMethod]
+	public void AggregateCountsRepositoriesPerLanguage()
+	{
+		StatisticsDocument stats = new()
+		{
+			Repositories =
+				[
+						Repo("a/one", languages: [Lang("C#", 100), Lang("Zig", 500)]),
+								Repo("a/two", languages: [Lang("C#", 900)]),
+								Repo("a/three", languages: [Lang("C#", 50)]),
+						],
+		};
+
+		AggregateStats result = Aggregator.Aggregate(stats, new AppOptions());
+
+		Assert.AreEqual("C#", result.Languages[0].Name);
+		Assert.AreEqual(3, result.Languages[0].RepoCount);
+		Assert.AreEqual("Zig", result.Languages[1].Name);
+		Assert.AreEqual(1, result.Languages[1].RepoCount);
+	}
+
+	[TestMethod]
+	public void AggregateExcludedRepositoriesDoNotCountTowardRepoCount()
+	{
+		StatisticsDocument stats = new()
+		{
+			Repositories =
+				[
+						Repo("keep/one", languages: [Lang("C#", 100)]),
+								Repo("skip/two", languages: [Lang("C#", 100)]),
+								Repo("secret/three", languages: [Lang("C#", 100)], isPrivate: true),
+						],
+		};
+
+		AppOptions options = new() { ExcludeRepos = "skip/*", ExcludePrivate = true };
+
+		AggregateStats result = Aggregator.Aggregate(stats, options);
+
+		Assert.AreEqual(1, result.Languages[0].RepoCount);
+	}
+
 	[TestMethod]
 	public void AggregateLastNonNullColourWins()
 	{

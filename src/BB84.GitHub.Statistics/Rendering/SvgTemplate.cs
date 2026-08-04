@@ -76,4 +76,28 @@ internal static class SvgTemplate
 	/// </summary>
 	public static string FormatNumber(long value) =>
 			value.ToString("N0", CultureInfo.InvariantCulture);
+
+	/// <summary>The plural suffix for <paramref name="count"/>, empty when it is one.</summary>
+	public static string Plural(long count) => count == 1 ? string.Empty : "s";
+
+	/// <summary>
+	/// Escapes text destined for the XHTML inside a <c>&lt;foreignObject&gt;</c>.
+	/// </summary>
+	/// <remarks>
+	/// An SVG is parsed as XML, so a stray <c>&amp;</c> in a label, a value or a
+	/// language name is not a cosmetic problem: it makes the whole document fail to
+	/// render.
+	/// </remarks>
+	public static string Escape(string value)
+	{
+		if (value.AsSpan().IndexOfAny('&', '<', '>') < 0)
+		{
+			return value;
+		}
+
+		return value
+				.Replace("&", "&amp;", StringComparison.Ordinal)
+				.Replace("<", "&lt;", StringComparison.Ordinal)
+				.Replace(">", "&gt;", StringComparison.Ordinal);
+	}
 }
