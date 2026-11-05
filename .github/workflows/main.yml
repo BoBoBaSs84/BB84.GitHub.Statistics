@@ -23,7 +23,7 @@ jobs:
 
     - uses: actions/setup-dotnet@v5
       with:
-        dotnet-version: '10.0.x'
+        global-json-file: global.json
 
     # Published outside the working tree so the binary survives the branch
     # switch below and never lands in `git add .`. PublishAot is disabled here:

@@ -1,20 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+﻿<Project Sdk="MSTest.Sdk">
   <PropertyGroup>
-    <IsPackable>False</IsPackable>
-    <OutputType>Exe</OutputType>
-    <EnableMSTestRunner>True</EnableMSTestRunner>
-    <TestingPlatformDotnetTestSupport>True</TestingPlatformDotnetTestSupport>
     <!-- Several tests deliberately assert behaviour under a non-invariant culture. -->
     <InvariantGlobalization>False</InvariantGlobalization>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="MSTest" />
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\..\src\BB84.GitHub.Statistics\BB84.GitHub.Statistics.csproj" />
   </ItemGroup>
-
 </Project>
