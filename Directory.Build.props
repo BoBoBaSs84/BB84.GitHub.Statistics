@@ -9,7 +9,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>True</InvariantGlobalization>
     <LangVersion>latest</LangVersion>
-    <ManagePackageVersionsCentrally>True</ManagePackageVersionsCentrally>
     <Nullable>enable</Nullable>
     <TargetFramework>net10.0</TargetFramework>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
